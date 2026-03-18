@@ -4,13 +4,19 @@
 local M = {}
 
 function M.notify(method, params)
-  -- vim.notify("fsharp.notify -> " .. method) -- temporary side effect for testing only
   require("ionide").notify(method, params)
 end
 
 function M.hover()
-  vim.notify("fsharp_vim.hover -> " .. "hello") -- temporary side effect for testing only
   vim.lsp.buf.hover()
 end
 
+function M.call(method, params, key)
+  require("ionide").call(method, params, key)
+end
+
 return M
+
+
+
+-- vim.notify("fsharp_vim.call -> " .. "hello") -- temporary side effect for testing only
