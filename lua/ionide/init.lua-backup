@@ -1,20 +1,33 @@
--- Hopefully I will be able to help with the following issues
---
--- [CodeLens doesn't always refresh #69](https://github.com/ionide/Ionide-vim/issues/69)
--- [Add *.slnx as root marker #106](https://github.com/ionide/Ionide-vim/issues/106)
---
+local vim = vim
+local validate = vim.validate
+local api = vim.api
+local lsp = vim.lsp
+local uv = vim.loop
+local fn = vim.fn
+local tbl_extend = vim.tbl_extend
 
-local util = require('ionide.util')
-local ionide_autocommands = vim.api.nvim_create_augroup("Ionide", { clear = true })
+function try_require(...)
+  local status, lib = pcall(require, ...)
+  if (status) then return lib end
+  return nil
+end
+
+local lspconfig_is_present = true
+local util = try_require('lspconfig.util')
+if util == nil then
+  lspconfig_is_present = false
+  util = require('ionide.util')
+end
+
 local M = {}
 
 local function create_handlers()
-  local handlers = vim.fn['fsharp#get_handlers']()
+  local handlers = fn['fsharp#get_handlers']()
   local result = {}
   for method, func_name in pairs(handlers) do
     local handler = function(err, params, ctx, _config)
       if params == nil or not (method == ctx.method) then return end
-      vim.fn[func_name](params)
+      fn[func_name](params)
     end
     result[method] = handler
   end
@@ -24,32 +37,30 @@ end
 
 local function get_default_config()
   local result = {}
-  vim.fn['fsharp#loadConfig']()
+  fn['fsharp#loadConfig']()
 
   local auto_init = vim.g['fsharp#automatic_workspace_init']
   result.name = "ionide"
   result.cmd = vim.g['fsharp#fsautocomplete_command']
   result.cmd_env = { DOTNET_ROLL_FORWARD = "LatestMajor" }
-  result.root_dir = util.root_pattern("*.sln", "*.fsproj", ".git", "*.fsx", "*.slnx")
+  result.root_dir = util.root_pattern("*.sln", "*.fsproj", ".git", "*.fsx")
   result.filetypes = { "fsharp" }
   result.autostart = true
   result.handlers = create_handlers()
   result.init_options = { AutomaticWorkspaceInit = (auto_init == 1) }
-  result.on_init = function() vim.fn['fsharp#initialize']() end
+  result.on_init = function() fn['fsharp#initialize']() end
 
   return result
 end
 
 -- https://github.com/ionide/Ionide-vim/issues/69
-local function inject_codelens_enable(config)
-  local new_config = vim.tbl_extend("keep", config, {})
+local function inject_codelens_refresh(config)
+  local new_config = tbl_extend("keep", config, {})
   new_config.on_attach = function(client, bufnr)
     if config.on_attach then
       config.on_attach(client, bufnr)
     end
-    if client:supports_method("textDocument/codeLens") then
-      vim.lsp.codelens.enable(true, { bufnr = bufnr, client_id = client.id })
-    end
+    vim.lsp.codelens.refresh()
   end
   return new_config
 end
@@ -61,11 +72,27 @@ local function autostart_if_needed(m, config)
   end
 end
 
+local function delegate_to_lspconfig(config)
+  local lspconfig = require('lspconfig')
+  local configs = require('lspconfig.configs')
+  if not (configs['ionide']) then
+    configs['ionide'] = {
+      default_config = get_default_config(),
+      docs = {
+        description = [[
+  https://github.com/ionide/Ionide-vim
+        ]],
+      },
+    }
+  end
+  lspconfig.ionide.setup(config)
+end
+
 M.manager = nil
 
 -- partially adopted from neovim/nvim-lspconfig, see lspconfig.LICENSE.md
 local function create_manager(config)
-  vim.validate {
+  validate {
     cmd = { config.cmd, "t", true },
     root_dir = { config.root_dir, "f", true },
     filetypes = { config.filetypes, "t", true },
@@ -73,28 +100,35 @@ local function create_manager(config)
     on_new_config = { config.on_new_config, "f", true },
   }
 
-  local default_config = vim.tbl_extend("keep", get_default_config(), util.default_config)
-  config = vim.tbl_extend("keep", config, default_config)
+  local default_config = tbl_extend("keep", get_default_config(), util.default_config)
+  config = tbl_extend("keep", config, default_config)
+
+  local trigger
+  if config.filetypes then
+    trigger = "FileType " .. table.concat(config.filetypes, ",")
+  else
+    trigger = "BufReadPost *"
+  end
 
   local get_root_dir = config.root_dir
 
   function M.autostart()
-    local root_dir = get_root_dir(vim.api.nvim_buf_get_name(0), vim.api.nvim_get_current_buf())
+    local root_dir = get_root_dir(api.nvim_buf_get_name(0), api.nvim_get_current_buf())
     if not root_dir then
-      root_dir = util.path.dirname(vim.api.nvim_buf_get_name(0))
+      root_dir = util.path.dirname(api.nvim_buf_get_name(0))
     end
     if not root_dir then
       root_dir = vim.fn.getcwd()
     end
     root_dir = string.gsub(root_dir, "\\", "/")
-    vim.api.nvim_command(
+    api.nvim_command(
       string.format(
         "autocmd %s lua require'ionide'.manager.try_add_wrapper()",
         "BufReadPost " .. root_dir .. "/*"
       )
     )
     for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-      local buf_dir = vim.api.nvim_buf_get_name(bufnr)
+      local buf_dir = api.nvim_buf_get_name(bufnr)
       if buf_dir:sub(1, root_dir:len()) == root_dir then
         M.manager.try_add_wrapper(bufnr)
       end
@@ -113,7 +147,7 @@ local function create_manager(config)
   local make_config = function(_root_dir)
     local new_config = vim.tbl_deep_extend("keep", vim.empty_dict(), config)
     new_config = vim.tbl_deep_extend("keep", new_config, default_config)
-    new_config.capabilities = new_config.capabilities or vim.lsp.protocol.make_client_capabilities()
+    new_config.capabilities = new_config.capabilities or lsp.protocol.make_client_capabilities()
     new_config.capabilities = vim.tbl_deep_extend("keep", new_config.capabilities, {
       workspace = {
         configuration = true,
@@ -141,17 +175,17 @@ local function create_manager(config)
     end)
     new_config._on_attach = new_config.on_attach
     new_config.on_attach = vim.schedule_wrap(function(client, bufnr)
-      if bufnr == vim.api.nvim_get_current_buf() then
+      if bufnr == api.nvim_get_current_buf() then
         M._setup_buffer(client.id, bufnr)
       else
-        vim.api.nvim_create_autocmd("BufEnter", {
-          group = ionide_autocommands,
-          buffer = bufnr,
-          once = true,
-          callback = function()
-            require("ionide")._setup_buffer(client.id, bufnr)
-          end,
-        })
+        api.nvim_command(
+          string.format(
+            "autocmd BufEnter <buffer=%d> ++once lua require'ionide'._setup_buffer(%d,%d)",
+            bufnr,
+            client.id,
+            bufnr
+          )
+        )
       end
     end)
     new_config.root_dir = _root_dir
@@ -160,20 +194,21 @@ local function create_manager(config)
 
   local manager = util.server_per_root_dir_manager(function(_root_dir) return make_config(_root_dir) end)
   function manager.try_add(bufnr)
-    bufnr = bufnr or vim.api.nvim_get_current_buf()
-    if vim.api.nvim_get_option_value("buftype", { buf = bufnr }) == 'nofile' then
+    bufnr = bufnr or api.nvim_get_current_buf()
+    if api.nvim_buf_get_option(bufnr, 'buftype') == 'nofile' then
       return
     end
-    local root_dir = get_root_dir(vim.api.nvim_buf_get_name(bufnr), bufnr)
+    local root_dir = get_root_dir(api.nvim_buf_get_name(bufnr), bufnr)
     local id = manager.add(root_dir)
     if id then
-      vim.lsp.buf_attach_client(bufnr, id)
+      lsp.buf_attach_client(bufnr, id)
     end
   end
 
   function manager.try_add_wrapper(bufnr)
-    bufnr = bufnr or vim.api.nvim_get_current_buf()
-    if vim.api.nvim_get_option_value("filetype", { buf = bufnr }) == 'fsharp' then
+    bufnr = bufnr or api.nvim_get_current_buf()
+    local buftype = api.nvim_buf_get_option(bufnr, 'filetype')
+    if buftype == 'fsharp' then
       manager.try_add(bufnr)
       return
     end
@@ -192,7 +227,7 @@ end
 
 -- partially adopted from neovim/nvim-lspconfig, see lspconfig.LICENSE.md
 function M._setup_buffer(client_id, bufnr)
-  local client = vim.lsp.get_client_by_id(client_id)
+  local client = lsp.get_client_by_id(client_id)
   if not client then
     return
   end
@@ -202,12 +237,17 @@ function M._setup_buffer(client_id, bufnr)
 end
 
 function M.setup(config)
-  local new_config = inject_codelens_enable(config)
+  local new_config = inject_codelens_refresh(config)
+  if lspconfig_is_present then
+    return delegate_to_lspconfig(new_config)
+  end
   return create_manager(new_config)
 end
 
 function M.status()
-  if M.manager ~= nil then
+  if lspconfig_is_present then
+    print("* LSP server: handled by nvim-lspconfig")
+  elseif M.manager ~= nil then
     if next(M.manager.clients()) == nil then
       print("* LSP server: not started")
     else
@@ -221,7 +261,7 @@ end
 function M.call(method, params, callback_key)
   local handler = function(err, result, ctx, config)
     if result ~= nil then
-      vim.fn['fsharp#resolve_callback'](callback_key, {
+      fn['fsharp#resolve_callback'](callback_key, {
         result = result,
         err = err,
         client_id = ctx.client_id,
@@ -229,11 +269,11 @@ function M.call(method, params, callback_key)
       })
     end
   end
-  vim.lsp.buf_request(0, method, params, handler)
+  lsp.buf_request(0, method, params, handler)
 end
 
 function M.notify(method, params)
-  vim.lsp.buf_notify(0, method, params)
+  lsp.buf_notify(0, method, params)
 end
 
 return M

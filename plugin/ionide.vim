@@ -6,11 +6,10 @@ call fsharp#loadConfig()
 
 " auto setup nvim-lsp
 let s:did_lsp_setup = 0
-if g:fsharp#backend == 'nvim' && g:fsharp#lsp_auto_setup && !s:did_lsp_setup
+if g:fsharp#lsp_auto_setup && !s:did_lsp_setup
     let s:did_lsp_setup = 1
-    lua ionide.setup{}
+    lua require("ionide").setup({})
 endif
-
 let &cpo = s:cpo_save
 unlet s:cpo_save
 
