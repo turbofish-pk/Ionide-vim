@@ -7,4 +7,4 @@ local fsharp = require("fsharp_vim")
 -- fsharp.notify('workspace/didChangeConfiguration', settings)
 
 
-fsharp.hover()
+-- fsharp.hover()

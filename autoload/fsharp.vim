@@ -18,35 +18,29 @@ let s:newline = s:get_newline()
 " FSAC payload interfaces
 
 function! s:TextDocumentIdentifier(path)
-    return { 'Uri': luaeval('vim.uri_from_fname(_A)', fnamemodify(a:path, ':p')) }
+    return v:lua.require("fsharp_vim").text_document_identifier(a:path)
 endfunction
 
 function! s:Position(line, character)
-    return { 'Line': a:line, 'Character': a:character }
+    return v:lua.require("fsharp_vim").position(a:line, a:character)
 endfunction
 
 function! s:TextDocumentPositionParams(documentUri, line, character)
-    return { 'TextDocument': s:TextDocumentIdentifier(a:documentUri), 'Position': s:Position(a:line, a:character) }
+    return v:lua.require("fsharp_vim").text_document_position_params(a:documentUri, a:line, a:character)
 endfunction
 
 function! s:WorkspaceLoadParams(files)
-    let prm = []
-    for file in a:files
-        call add(prm, s:TextDocumentIdentifier(file))
-    endfor
-    return { 'TextDocuments': prm }
+    return v:lua.require("fsharp_vim").workspace_load_params(a:files)
 endfunction
 
 " LSP functions
 
 function! s:call(method, params, cont)
     let key = fsharp#register_callback(a:cont)
-    call luaeval('require("ionide").call(_A[1], _A[2], _A[3])', [a:method, a:params, key])
+    call v:lua.require("fsharp_vim").call(a:method, a:params, key)
 endfunction
 
 function! s:notify(method, params)
-    " done
-    "call luaeval('require("ionide").notify(_A[1], _A[2])', [a:method, a:params])
     call v:lua.require('fsharp_vim').notify(a:method, a:params)
 endfunction
 
@@ -75,102 +69,12 @@ endfunction
 "
 " * Changes made to linter/unused analyzer settings seems not reflected after sending them to FSAC?
 "
-let s:config_keys_camel =
-            \ [
-            \     {'key': 'AutomaticWorkspaceInit', 'default': 1},
-            \     {'key': 'WorkspaceModePeekDeepLevel', 'default': 2},
-            \     {'key': 'ExcludeProjectDirectories', 'default': []},
-            \     {'key': 'keywordsAutocomplete', 'default': 1},
-            \     {'key': 'ExternalAutocomplete', 'default': 0},
-            \     {'key': 'FullNameExternalAutocomplete', 'default': 0},
-            \     {'key': 'Linter', 'default': 1},
-            \     {'key': 'LinterConfig'},
-            \     {'key': 'IndentationSize', 'default': 4},
-            \     {'key': 'UnionCaseStubGeneration', 'default': 1},
-            \     {'key': 'UnionCaseStubGenerationBody'},
-            \     {'key': 'RecordStubGeneration', 'default': 1},
-            \     {'key': 'RecordStubGenerationBody'},
-            \     {'key': 'InterfaceStubGeneration', 'default': 1},
-            \     {'key': 'InterfaceStubGenerationObjectIdentifier', 'default': 'this'},
-            \     {'key': 'InterfaceStubGenerationMethodBody'},
-            \     {'key': 'AddPrivateAccessModifier', 'default': 0},
-            \     {'key': 'UnusedOpensAnalyzer', 'default': 1},
-            \     {'key': 'UnusedOpensAnalyzerExclusions', 'default': []},
-            \     {'key': 'UnusedDeclarationsAnalyzer', 'default': 1},
-            \     {'key': 'UnusedDeclarationsAnalyzerExclusions', 'default': []},
-            \     {'key': 'SimplifyNameAnalyzer', 'default': 0},
-            \     {'key': 'SimplifyNameAnalyzerExclusions', 'default': []},
-            \     {'key': 'UnnecessaryParenthesesAnalyzer', 'default': 0},
-            \     {'key': 'UnnecessaryParenthesesAnalyzerExclusions', 'default': []},
-            \     {'key': 'ResolveNamespaces', 'default': 1},
-            \     {'key': 'EnableReferenceCodeLens', 'default': 1},
-            \     {'key': 'EnableAnalyzers', 'default': 0},
-            \     {'key': 'AnalyzersPath'},
-            \     {'key': 'ExcludeAnalyzers'},
-            \     {'key': 'IncludeAnalyzers'},
-            \     {'key': 'DisableInMemoryProjectReferences', 'default': 0},
-            \     {'key': 'LineLens', 'default': {'enabled': 'never', 'prefix': ''}},
-            \     {'key': 'UseSdkScripts', 'default': 1},
-            \     {'key': 'dotNetRoot'},
-            \     {'key': 'fsiExtraParameters'},
-            \     {'key': 'fsiExtraInteractiveParameters', 'default': ['--readline-']},
-            \     {'key': 'fsiExtraSharedParameters', 'default': []},
-            \     {'key': 'fsiCompilerToolLocations', 'default': []},
-            \     {'key': 'TooltipMode', 'default': 'full'},
-            \     {'key': 'GenerateBinlog', 'default': 0},
-            \     {'key': 'AbstractClassStubGeneration', 'default': 1},
-            \     {'key': 'AbstractClassStubGenerationObjectIdentifier', 'default': 'this'},
-            \     {'key': 'AbstractClassStubGenerationMethodBody', 'default': 'failwith "Not Implemented"'},
-            "\    {'key': 'CodeLenses', TODO},
-            "\    {'key': 'PipelineHints', TODO}
-            "\    {'key': 'InlayHints', TODO}
-            "\    {'key': 'Fsac', TODO}
-            "\    {'key': 'Notifications', TODO}
-            "\    {'key': 'Debug', TODO}
-            \ ]
-let s:config_keys = []
-let s:config_is_loaded = v:false
-
-function! s:toSnakeCase(str)
-    let sn = substitute(a:str, '\(\<\u\l\+\|\l\+\)\(\u\)', '\l\1_\l\2', 'g')
-    if sn ==# a:str | return tolower(a:str) | endif
-    return sn
-endfunction
-
-function! s:buildConfigKeys()
-    if empty(s:config_keys)
-        for key_camel in s:config_keys_camel
-            let key = {}
-            let key.snake = s:toSnakeCase(key_camel.key)
-            let key.camel = key_camel.key
-            if has_key(key_camel, 'default')
-                let key.default = key_camel.default
-            endif
-            call add(s:config_keys, key)
-        endfor
-    endif
-endfunction
-
 function! fsharp#getServerConfig()
-    let fsharp = {}
-    call s:buildConfigKeys()
-    for key in s:config_keys
-        if exists('g:fsharp#' . key.snake)
-            let fsharp[key.camel] = g:fsharp#{key.snake}
-        elseif exists('g:fsharp#' . key.camel)
-            let fsharp[key.camel] = g:fsharp#{key.camel}
-        elseif has_key(key, 'default') && g:fsharp#use_recommended_server_config
-            let g:fsharp#{key.snake} = key.default
-            let fsharp[key.camel] = key.default
-        endif
-    endfor
-    return fsharp
+    return v:lua.require("fsharp_vim").get_server_config()
 endfunction
 
 function! fsharp#updateServerConfig()
-    let fsharp = fsharp#getServerConfig()
-    let settings = {'settings': {'FSharp': fsharp}}
-    call s:notify('workspace/didChangeConfiguration', settings)
+    v:lua.require("fsharp_vim").update_server_config()
 endfunction
 
 function! fsharp#loadConfig()
@@ -377,7 +281,6 @@ function! fsharp#showF1Help()
 endfunction
 
 function! s:hover()
-    "done
     call v:lua.require('fsharp_vim').hover()
 endfunction
 
@@ -469,7 +372,6 @@ endfunction
 function! fsharp#quitFsi()
     if s:fsi_buffer >= 0 && bufexists(s:fsi_buffer)
         let winid = bufwinid(s:fsi_buffer)
-        "if winid > 0 | execute "close " . winid | endif
         if winid > 0
             let current_win = win_getid()
             call win_gotoid(winid)
@@ -498,7 +400,6 @@ function! fsharp#sendFsi(text)
         else
             let l:full_text = a:text " Don't send #cd if directory is invalid/empty
         endif
-        "call chansend(s:fsi_job, l:full_text . s:newline . ";;". s:newline)
         if s:fsi_job > 0 && jobwait([s:fsi_job], 0)[0] == -1
             call chansend(s:fsi_job, l:full_text . s:newline . ';;' . s:newline)
         else
