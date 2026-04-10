@@ -32,7 +32,7 @@ Feel free to [request features and/or file bug reports](https://github.com/ionid
   - Required to install and run FsAutoComplete.
   - Very useful for command-line development.
 
-* If you are using Vim or Neovim below version 0.5:
+* If you are using Vim or Neovim below version 0.11.3:
   * [autozimu/LanguageClient-neovim](https://github.com/autozimu/LanguageClient-neovim)
     - Required to communicate with FsAutoComplete.
   * [junegunn/fzf](https://github.com/junegunn/fzf) (optional)
