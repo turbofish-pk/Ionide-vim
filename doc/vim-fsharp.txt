@@ -94,7 +94,7 @@ on |CursorHold| and |InsertLeave|.  To disable this set this option to `0`.
 2.3. FSAUTOCOMPLETE COMMANDS                                    *fsac-commands*
 
   * *:FSharpShowLoadedProjects* - Shows the currently loaded projects.
-  * *:FSharpParseProject*       - Loads specified projects (`sln` or `fsproj`).
+  * *:FSharpLoadProject*       - Loads specified projects (`sln` or `fsproj`).
   * *:FSharpReloadWorkspace*    - Reloads currently loaded projects.
   * *:FSharpUpdateServerConfig* - Updates FSAutoComplete (FSAC) configuration.
 

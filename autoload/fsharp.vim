@@ -333,7 +333,7 @@ function! fsharp#loadConfig()
             let g:LanguageClient_rootMarkers = {}
         endif
         if !has_key(g:LanguageClient_rootMarkers, 'fsharp')
-            let g:LanguageClient_rootMarkers.fsharp = ['*.sln', '*.fsproj', '.git']
+            let g:LanguageClient_rootMarkers.fsharp = ['*.sln', '*.slnx', '*.fsproj', '.git']
         endif
     elseif g:fsharp#backend == 'nvim'
         if !exists('g:fsharp#lsp_auto_setup')

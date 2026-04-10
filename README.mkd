@@ -180,8 +180,8 @@ To be added as requested for F#-specific features.
 #### `:FSharpShowLoadedProjects`
   - Shows the projects currently loaded.
 
-#### `:FSharpParseProject <files>+`
-  - Loads specified projects (`sln` or `fsproj`).
+#### `:FSharpLoadProject <files>+`
+  - Loads specified projects (`sln`, `slnx` or `fsproj`).
 
 #### `:FSharpReloadWorkspace`
   - Reloads all the projects currently loaded.
@@ -342,7 +342,7 @@ for the complete list of available settings. Frequently used ones are:
 let g:fsharp#automatic_workspace_init = 1 " 0 to disable.
 ~~~
 
-##### Set the deep level of directory hierarchy when searching for sln/fsprojs
+##### Set the deep level of directory hierarchy when searching for sln/slnx/fsprojs
 
 *Default:* `2`
 
