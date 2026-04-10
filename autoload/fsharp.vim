@@ -12,7 +12,7 @@ set cpo&vim
 
 let s:script_root_dir = expand('<sfile>:p:h') . "/../"
 
-if has('nvim-0.5')
+if has('nvim-0.11.3')
     lua ionide = require("ionide")
 endif
 
@@ -299,7 +299,7 @@ function! fsharp#loadConfig()
     endif
 
     if !exists('g:fsharp#backend')
-        if has('nvim-0.5')
+        if has('nvim-0.11.3')
             if exists('g:LanguageClient_loaded')
                 let g:fsharp#backend = "languageclient-neovim"
             else
@@ -336,6 +336,14 @@ function! fsharp#loadConfig()
             let g:LanguageClient_rootMarkers.fsharp = ['*.sln', '*.slnx', '*.fsproj', '.git']
         endif
     elseif g:fsharp#backend == 'nvim'
+        if !has('nvim-0.11.3')
+            echohl WarningMsg
+            echom "Ionide-vim: the built-in Neovim LSP backend now requires Neovim 0.11.3+."
+            echom "Ionide-vim: downgrade Ionide-nvim to commit b28f27a or upgrade Neovim."
+            echohl None
+            let g:fsharp#backend = 'disable'
+            return
+        endif
         if !exists('g:fsharp#lsp_auto_setup')
             let g:fsharp#lsp_auto_setup = 1
         endif

@@ -24,9 +24,9 @@ Syntax highlighting, linting and the LSP will trigger upon opening a `*.fs`,
 
 Dependencies ~
 
-  * Neovim or Vim 8+
+  * Neovim 0.11.3+ or Vim 8+
 
-    Note: If using Neovim < 0.5 or Vim, you will need to install:
+    Note: If using Neovim < 0.11.3 or Vim, you will need to install:
           https://github.com/autozimu/LanguageClient-neovim
 
   * .NET SDK
@@ -48,8 +48,8 @@ Install FSAutoComplete globally with: `dotnet tool install -g fsautocomplete`
 
                                                            *'g:fsharp#backend'*
 Set the LSP client used.  Available values:
-  * `'nvim'`                  - Default on Neovim v0.5+.
-  * `'languageclient-neovim'` - Default if Vim or Neovim < v0.5.
+  * `'nvim'`                  - Default on Neovim v0.11.3+.
+  * `'languageclient-neovim'` - Default if Vim or Neovim < v0.11.3.
   * `'disable'`               - Turn off LSP integration.
 
 The `'languageclient-neovim'` option sets the LSP client to be
@@ -81,8 +81,12 @@ setting the option to `0`.
 
                                                     *'g:fsharp#lsp_auto_setup'*
 
-Ionide-vim automatically sets up the server config for the Neovim LSP client.
-If you would rather control it manually set this option to `0`.
+Ionide-vim automatically enables the built-in `ionide` config for the Neovim
+LSP client. If you would rather control it manually set this option to `0`.
+
+Configure it manually with |vim.lsp.config()| and enable it with
+|vim.lsp.enable()|.  `require('ionide').setup()` is deprecated and kept only
+for compatibility with older user configs.
 
 
                                                       *'g:fsharp#lsp_codelens'*
